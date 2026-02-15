@@ -1,4 +1,4 @@
-BINARY=jobgo
+BINARY=jobgo.exe
 BUILD_DIR=bin
 
 .PHONY: build install test lint clean

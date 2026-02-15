@@ -47,14 +47,17 @@ func (d *DB) ListCompanies() ([]Company, error) {
 	return companies, rows.Err()
 }
 
-func (d *DB) DeleteCompany(id string) error {
-	result, err := d.Exec(`DELETE FROM companies WHERE id = ?`, id)
+func (d *DB) DeleteCompany(idPrefix string) error {
+	result, err := d.Exec(`DELETE FROM companies WHERE id LIKE ?`, idPrefix+"%")
 	if err != nil {
 		return fmt.Errorf("deleting company: %w", err)
 	}
 	n, _ := result.RowsAffected()
 	if n == 0 {
-		return fmt.Errorf("company not found: %s", id)
+		return fmt.Errorf("company not found: %s", idPrefix)
+	}
+	if n > 1 {
+		return fmt.Errorf("ambiguous prefix %s matched %d companies", idPrefix, n)
 	}
 	return nil
 }
