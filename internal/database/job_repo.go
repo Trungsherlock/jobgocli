@@ -7,17 +7,18 @@ import (
 	"github.com/google/uuid"
 )
 
-func (d *DB) CreateJob(companyID, externalID, title, description, location, department, skills, url string, remote bool, postedAt *time.Time) (*Job, error) {
+func (d *DB) CreateJob(companyID, externalID, title, description, location, department, skills, url string, remote bool, postedAt *time.Time) (bool, error) {
 	id := uuid.New().String()
-	_, err := d.Exec(
+	result, err := d.Exec(
 		`INSERT OR IGNORE INTO jobs (id, company_id, external_id, title, description, location, remote, department, skills, url, posted_at, scraped_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
 		id, companyID, externalID, title, description, location, remote, department, skills, url, postedAt,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("inserting job: %w", err)
+		return false, fmt.Errorf("inserting job: %w", err)
 	}
-	return d.GetJob(id)
+	n, _ := result.RowsAffected()
+	return n > 0, nil
 }
 
 func (d *DB) GetJob(id string) (*Job, error) {

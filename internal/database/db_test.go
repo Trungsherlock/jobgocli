@@ -66,12 +66,12 @@ func TestJobCRUD(t *testing.T) {
 	c, _ := db.CreateCompany("Test Co", "lever", "testco", "")
 
 	// Create
-	j, err := db.CreateJob(c.ID, "ext-123", "Backend Engineer", "Go experience required", "Remote", "Engineering", `["Go"]`, "https://example.com/apply", true, nil)
+	created, err := db.CreateJob(c.ID, "ext-123", "Backend Engineer", "Go experience required", "Remote", "Engineering", `["Go"]`, "https://example.com/apply", true, nil)
 	if err != nil {
 		t.Fatalf("CreateJob: %v", err)
 	}
-	if j.Title != "Backend Engineer" {
-		t.Errorf("got title=%s, want Backend Engineer", j.Title)
+	if !created {
+		t.Error("expected job to be created")
 	}
 
 	// List with filters
@@ -82,16 +82,20 @@ func TestJobCRUD(t *testing.T) {
 	if len(jobs) != 1 {
 		t.Errorf("got %d jobs, want 1", len(jobs))
 	}
+	if jobs[0].Title != "Backend Engineer" {
+		t.Errorf("got title=%s, want Backend Engineer", jobs[0].Title)
+	}
+
 
 	// Update status
-	if err := db.UpdateJobStatus(j.ID, "applied"); err != nil {
+	if err := db.UpdateJobStatus(jobs[0].ID, "applied"); err != nil {
 		t.Fatalf("UpdateJobStatus: %v", err)
 	}
 
 	// Verify new jobs filter excludes it
-	jobs, _ = db.ListJobs(0, "", true, false)
-	if len(jobs) != 0 {
-		t.Errorf("got %d new jobs after status change, want 0", len(jobs))
+	newJobs, _ := db.ListJobs(0, "", true, false)
+	if len(newJobs) != 0 {
+		t.Errorf("got %d new jobs after status change, want 0", len(newJobs))
 	}
 }
 
