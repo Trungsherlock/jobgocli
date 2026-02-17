@@ -89,3 +89,15 @@ func (d *DB) UpdateJobMatch(id string, score float64, reason string) error {
 	_, err := d.Exec(`UPDATE jobs SET match_score = ?, match_reason = ? WHERE id = ?`, score, reason, id)
 	return err
 }
+
+func (d *DB) UpdateJobClassification(id string, experienceLevel string, isNewGrad bool, visaMentioned bool, visaSentiment string) error {
+	_, err := d.Exec(
+		`UPDATE jobs SET experience_level = ?, is_new_grad = ?, visa_mentioned = ?, visa_sentiment = ? WHERE id = ?`,
+		experienceLevel, isNewGrad, visaMentioned, visaSentiment, id,
+	)
+	return err
+}
+
+func (d *DB) ListUnclassifiedJobs() ([]Job, error) {
+	return d.listJobsWhere("experience_level IS NULL")
+}

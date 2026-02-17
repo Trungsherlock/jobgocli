@@ -10,6 +10,7 @@ import (
 	"github.com/Trungsherlock/jobgocli/internal/matcher"
 	"github.com/Trungsherlock/jobgocli/internal/scraper"
 	"github.com/Trungsherlock/jobgocli/internal/worker"
+	"github.com/Trungsherlock/jobgocli/internal/h1b"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -114,6 +115,14 @@ var searchCmd = &cobra.Command{
 					scored++
 				}
 				fmt.Printf("Scored %d jobs.\n", scored)
+			}
+			unclassified, _ := db.ListUnclassifiedJobs()
+			if len(unclassified) > 0 {
+				fmt.Printf("Classifying %d jobs...\n", len(unclassified))
+				for _, job := range unclassified {
+					expLevel, isNewGrad, visaMentioned, visaSentiment := h1b.ClassifyJob(job)
+					_ = db.UpdateJobClassification(job.ID, expLevel, isNewGrad, visaMentioned, visaSentiment)
+				}
 			}
 		}
 
