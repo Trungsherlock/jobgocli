@@ -16,7 +16,7 @@ func (d *DB) CreateApplication(jobID, notes string) (*Application, error) {
 		return nil, fmt.Errorf("creating application: %w", err)
 	}
 
-	d.Exec(`UPDATE jobs SET status = 'applied' WHERE id = ?`, jobID)
+	_, _ = d.Exec(`UPDATE jobs SET status = 'applied' WHERE id = ?`, jobID)
 
 	return d.GetApplication(id)
 }

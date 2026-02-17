@@ -182,8 +182,5 @@ func (l *LLMMatcher) callAPI(ctx context.Context, job database.Job, profile data
 		matchResp.Score = 100
 	}
 
-	return MatchResult{
-		Score:  matchResp.Score,
-		Reason: matchResp.Reason,
-	}, nil
+	return MatchResult(matchResp), nil
 }
