@@ -54,7 +54,7 @@ func (d *DB) GetApplicationSummary() ([]StatusSummary, error) {
 	if err != nil {
 		return nil, fmt.Errorf("getting summary: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var summaries []StatusSummary
 	for rows.Next() {
