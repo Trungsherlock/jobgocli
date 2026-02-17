@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "jobgo": {
+      "command": "c:\\Users\\trung\\projects\\jobgocli\\bin\\jobgo.exe",
+      "args": ["serve", "--mcp"]
+    }
+  }
+}
