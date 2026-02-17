@@ -21,8 +21,9 @@ func (d *DB) CreateCompany(name, platform, slug, careerURL string) (*Company, er
 func (d *DB) GetCompany(id string) (*Company, error) {
 	c := &Company{}
 	err := d.QueryRow(
-		`SELECT id, name, platform, slug, career_url, enabled, last_scraped_at, created_at FROM companies WHERE id = ?`, id,
-	).Scan(&c.ID, &c.Name, &c.Platform, &c.Slug, &c.CareerURL, &c.Enabled, &c.LastScrapedAt, &c.CreatedAt)
+		`SELECT id, name, platform, slug, career_url, enabled, last_scraped_at, created_at,
+		h1b_sponsor_id, sponsors_h1b, h1b_approval_rate, h1b_total_filed FROM companies WHERE id = ?`, id,
+	).Scan(&c.ID, &c.Name, &c.Platform, &c.Slug, &c.CareerURL, &c.Enabled, &c.LastScrapedAt, &c.CreatedAt, &c.H1bSponsorID, &c.SponsorsH1b, &c.H1bApprovalRate, &c.H1bTotalFiled)
 	if err != nil {
 		return nil, fmt.Errorf("getting company: %w", err)
 	}
@@ -30,7 +31,8 @@ func (d *DB) GetCompany(id string) (*Company, error) {
 }
 
 func (d *DB) ListCompanies() ([]Company, error) {
-	rows, err := d.Query(`SELECT id, name, platform, slug, career_url, enabled, last_scraped_at, created_at FROM companies ORDER BY name`)
+	rows, err := d.Query(`SELECT id, name, platform, slug, career_url, enabled, last_scraped_at, created_at,
+	h1b_sponsor_id, sponsors_h1b, h1b_approval_rate, h1b_total_filed FROM companies ORDER BY name`)
 	if err != nil {
 		return nil, fmt.Errorf("listing companies: %w", err)
 	}
@@ -39,7 +41,7 @@ func (d *DB) ListCompanies() ([]Company, error) {
 	var companies []Company
 	for rows.Next() {
 		var c Company
-		if err := rows.Scan(&c.ID, &c.Name, &c.Platform, &c.Slug, &c.CareerURL, &c.Enabled, &c.LastScrapedAt, &c.CreatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.Name, &c.Platform, &c.Slug, &c.CareerURL, &c.Enabled, &c.LastScrapedAt, &c.CreatedAt, &c.H1bSponsorID, &c.SponsorsH1b, &c.H1bApprovalRate, &c.H1bTotalFiled); err != nil {
 			return nil, fmt.Errorf("scanning company: %w", err)
 		}
 		companies = append(companies, c)

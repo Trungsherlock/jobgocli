@@ -27,8 +27,8 @@ func (d *DB) UpsertProfile(p *Profile) error {
 func (d *DB) GetProfile() (*Profile, error) {
 	p := &Profile{}
 	err := d.QueryRow(
-		`SELECT id, name, email, skills, experience_years, preferred_roles, preferred_locations, min_match_score, resume_raw, created_at, updated_at FROM profile WHERE id = 1`,
-	).Scan(&p.ID, &p.Name, &p.Email, &p.Skills, &p.ExperienceYears, &p.PreferredRoles, &p.PreferredLocations, &p.MinMatchScore, &p.ResumeRaw, &p.CreatedAt, &p.UpdatedAt)
+		`SELECT id, name, email, skills, experience_years, preferred_roles, preferred_locations, min_match_score, resume_raw, created_at, updated_at, visa_required, experience_level FROM profile WHERE id = 1`,
+	).Scan(&p.ID, &p.Name, &p.Email, &p.Skills, &p.ExperienceYears, &p.PreferredRoles, &p.PreferredLocations, &p.MinMatchScore, &p.ResumeRaw, &p.CreatedAt, &p.UpdatedAt, &p.VisaRequired, &p.ExperienceLevel)
 	if err == sql.ErrNoRows {
 		return nil, nil // no profile yet
 	}
