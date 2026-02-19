@@ -47,7 +47,7 @@ var companyImportCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("opening file: %w", err)
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 
 		reader := csv.NewReader(f)
 		reader.TrimLeadingSpace = true
