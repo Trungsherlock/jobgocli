@@ -36,6 +36,9 @@ func (s *Server) setupRoutes() {
 		r.Delete("/companies/{id}", s.deleteCompany)
 		r.Get("/profile", s.getProfile)
 		r.Get("/stats", s.getStats)
+		r.Get("/h1b/sponsors", s.listSponsors)
+		r.Get("/h1b/status", s.h1bStatus)
+
 	})
 
 	s.router = r
@@ -54,14 +57,17 @@ func (s *Server) listJobs(w http.ResponseWriter, r *http.Request) {
 	companyID := r.URL.Query().Get("company_id")
 	onlyNew := r.URL.Query().Get("new") == "true"
 	onlyRemote := r.URL.Query().Get("remote") == "true"
+	visaFriendly := r.URL.Query().Get("visa_friendly") == "true"
+	newGrad := r.URL.Query().Get("new_grad") == "true"
 
-	jobs, err := s.db.ListJobs(minScore, companyID, onlyNew, onlyRemote)
+	jobs, err := s.db.ListJobs(minScore, companyID, onlyNew, onlyRemote, visaFriendly, newGrad)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, jobs)
 }
+
 
 func (s *Server) getJob(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
@@ -160,3 +166,39 @@ func corsMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
+
+func (s *Server) listSponsors(w http.ResponseWriter, r *http.Request) {
+	companies, err := s.db.ListCompanies()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	type sponsorInfo struct {
+		CompanyName    string   `json:"company_name"`
+		SponsorsH1B    bool     `json:"sponsors_h1b"`
+		ApprovalRate   *float64 `json:"approval_rate,omitempty"`
+		TotalFiled     *int     `json:"total_filed,omitempty"`
+	}
+	var result []sponsorInfo
+	for _, c := range companies {
+		result = append(result, sponsorInfo{
+			CompanyName:  c.Name,
+			SponsorsH1B:  c.SponsorsH1b,
+			ApprovalRate: c.H1bApprovalRate,
+			TotalFiled:   c.H1bTotalFiled,
+		})
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) h1bStatus(w http.ResponseWriter, r *http.Request) {
+	count, err := s.db.CountSponsors()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"total_sponsors_in_db": count,
+	})
+}
+

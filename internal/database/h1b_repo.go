@@ -40,7 +40,7 @@ func (d *DB) LinkCompanyToSponsor(companyID, sponsorID string, approvalRate floa
 	return err
 }
 
-func (d *DB) CountSponsor() (int, error) {
+func (d *DB) CountSponsors() (int, error) {
 	var count int
 	err := d.QueryRow("SELECT COUNT(*) FROM h1b_sponsors").Scan(&count)
 	return count, err
