@@ -35,7 +35,7 @@ func detectExperienceLevel(title, combined string) (string, bool) {
 		}
 	}
 
-	if strings.Contains(title, "interns") {
+	if strings.Contains(title, "intern") {
 		return "intern", false
 	}
 	if strings.Contains(title, "senior") || strings.Contains(title, "sr.") || strings.Contains(title, "sr ") {
