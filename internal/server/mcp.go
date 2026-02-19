@@ -35,6 +35,8 @@ func (m *MCPServer) registerTools() {
 			mcp.WithNumber("min_score", mcp.Description("Minimum match score (0-100)"), mcp.DefaultNumber(0)),
 			mcp.WithBoolean("remote_only", mcp.Description("Only return remote jobs"), mcp.DefaultBool(false)),
 			mcp.WithBoolean("new_only", mcp.Description("Only return unseen jobs"), mcp.DefaultBool(false)),
+			mcp.WithBoolean("visa_friendly", mcp.Description("Only return jobs from H1B sponsors"), mcp.DefaultBool(false)),
+			mcp.WithBoolean("new_grad", mcp.Description("Only return new-grad friendly jobs"), mcp.DefaultBool(false)),
 		),
 		m.searchJobs,
 	)
@@ -78,22 +80,27 @@ func (m *MCPServer) searchJobs(ctx context.Context, req mcp.CallToolRequest) (*m
 	minScore, _ := args["min_score"].(float64)
 	remoteOnly, _ := args["remote_only"].(bool)
 	newOnly, _ := args["new_only"].(bool)
+	visaFriendly, _ := args["visa_friendly"].(bool)
+	newGrad, _ := args["new_grad"].(bool)
 
-	jobs, err := m.db.ListJobs(minScore, "", newOnly, remoteOnly, false, false)
+	jobs, err := m.db.ListJobs(minScore, "", newOnly, remoteOnly, visaFriendly, newGrad)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
 	// Build a concise summary for the AI
 	type jobSummary struct {
-		ID       string   `json:"id"`
-		Title    string   `json:"title"`
-		Company  string   `json:"company"`
-		Location string   `json:"location"`
-		Remote   bool     `json:"remote"`
-		Score    *float64 `json:"score"`
-		Status   string   `json:"status"`
-		URL      string   `json:"url"`
+		ID       		string   	`json:"id"`
+		Title    		string   	`json:"title"`
+		Company  		string   	`json:"company"`
+		SponsorsH1B		bool		`json:"sponsors_h1b"`
+		Location 		string   	`json:"location"`
+		Remote   		bool     	`json:"remote"`
+		Score    		*float64 	`json:"score"`
+		Status   		string   	`json:"status"`
+		URL      		string   	`json:"url"`
+		IsNewGrad		bool		`json:"is_new_grad"`
+		VisaSentiment	string		`json:"visa_sentiment,omitempty"`
 	}
 
 	summaries := make([]jobSummary, 0, len(jobs))
@@ -107,15 +114,27 @@ func (m *MCPServer) searchJobs(ctx context.Context, req mcp.CallToolRequest) (*m
 		if j.Location != nil {
 			location = *j.Location
 		}
+		sponsorsH1B := false
+		if c, err := m.db.GetCompany(j.CompanyID); err == nil {
+			companyName = c.Name
+			sponsorsH1B = c.SponsorsH1b
+		}
+		visaSentiment := ""
+		if j.VisaSentiment != nil {
+			visaSentiment = *j.VisaSentiment
+		}
 		summaries = append(summaries, jobSummary{
-			ID:       j.ID,
-			Title:    j.Title,
-			Company:  companyName,
-			Location: location,
-			Remote:   j.Remote,
-			Score:    j.MatchScore,
-			Status:   j.Status,
-			URL:      j.URL,
+			ID:       		j.ID,
+			Title:    		j.Title,
+			Company:  		companyName,
+			SponsorsH1B: 	sponsorsH1B,
+			Location: 		location,
+			Remote:   		j.Remote,
+			Score:    		j.MatchScore,
+			Status:   		j.Status,
+			URL:      		j.URL,
+			IsNewGrad: 		j.IsNewGrad,
+			VisaSentiment: 	visaSentiment,
 		})
 	}
 
@@ -146,6 +165,7 @@ func (m *MCPServer) getJobDetails(ctx context.Context, req mcp.CallToolRequest) 
 		"remote":  job.Remote,
 		"status":  job.Status,
 	}
+
 	if job.Location != nil {
 		details["location"] = *job.Location
 	}
@@ -160,6 +180,20 @@ func (m *MCPServer) getJobDetails(ctx context.Context, req mcp.CallToolRequest) 
 	}
 	if job.MatchReason != nil {
 		details["match_reason"] = *job.MatchReason
+	}
+	details["is_new_grad"] = job.IsNewGrad
+	details["visa_mentioned"] = job.VisaMentioned
+	if job.VisaSentiment != nil {
+		details["visa_sentiment"] = *job.VisaSentiment
+	}
+	if job.ExperienceLevel != nil {
+		details["experience_level"] = *job.ExperienceLevel
+	}
+	if c, err := m.db.GetCompany(job.CompanyID); err == nil {
+		details["sponsors_h1b"] = c.SponsorsH1b
+		if c.H1bApprovalRate != nil {
+			details["h1b_approval_rate"] = *c.H1bApprovalRate
+		}
 	}
 
 	data, _ := json.MarshalIndent(details, "", "  ")
