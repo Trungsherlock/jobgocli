@@ -1,10 +1,18 @@
 package h1b
 
 import (
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/Trungsherlock/jobgocli/internal/database"
 )
+
+// matches "2-8 YOE", "3–5 years", "0-2 yrs" etc.
+var yoeRangeRE = regexp.MustCompile(`(?i)(\d+)\s*[-–]\s*(\d+)\s*(?:years?|yrs?|yoe)\b`)
+
+// matches "8+ years", "3+ yoe", "5 yrs", "10 years" etc.
+var yoeRE = regexp.MustCompile(`(?i)(\d+)\+?\s*(?:years?|yrs?|yoe)\b`)
 
 func ClassifyJob(job database.Job) (experienceLevel string, isNewGrad bool, visaMentioned bool, visaSentiment string) {
 	title := strings.ToLower(job.Title)
@@ -48,19 +56,30 @@ func detectExperienceLevel(title, combined string) (string, bool) {
 		return "lead", false
 	}
 
-	// Check description for years of experience
-	if strings.Contains(combined, "5+ years") || strings.Contains(combined, "7+ years") ||
-		strings.Contains(combined, "10+ years") || strings.Contains(combined, "8+ years") {
-		return "senior", false
+	// Check title first for explicit YOE range (e.g. "(2-8 YOE)", "(0-2 years)")
+	if m := yoeRangeRE.FindStringSubmatch(title); m != nil {
+		upper, _ := strconv.Atoi(m[2])
+		return levelByYears(upper)
 	}
-	if strings.Contains(combined, "3+ years") || strings.Contains(combined, "4+ years") {
-		return "mid", false
-	}
-	if strings.Contains(combined, "1+ years") || strings.Contains(combined, "2+ years") {
-		return "entry", false
+
+	// Check combined text for any YOE mention (e.g. "8+ yoe", "3+ years of experience")
+	if m := yoeRE.FindStringSubmatch(combined); m != nil {
+		n, _ := strconv.Atoi(m[1])
+		return levelByYears(n)
 	}
 
 	return "mid", false
+}
+
+func levelByYears(n int) (string, bool) {
+	switch {
+	case n >= 5:
+		return "senior", false
+	case n >= 3:
+		return "mid", false
+	default:
+		return "entry", false
+	}
 }
 
 func detectVisaStance(combined string) (bool, string) {

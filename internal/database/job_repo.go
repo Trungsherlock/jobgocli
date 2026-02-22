@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"time"
+	"encoding/json"
 
 	"github.com/google/uuid"
 )
@@ -24,21 +25,21 @@ func (d *DB) CreateJob(companyID, externalID, title, description, location, depa
 func (d *DB) GetJob(id string) (*Job, error) {
 	j := &Job{}
 	err := d.QueryRow(
-		`SELECT j.id, j.company_id, COALESCE(c.name, '') as company_name, j.external_id, j.title, j.description, j.location, j.remote, j.department, j.skills, j.url, j.posted_at, j.scraped_at, j.match_score, j.match_reason, j.status, j.created_at, j.experience_level, j.visa_mentioned, j.visa_sentiment, j.is_new_grad
+		`SELECT j.id, j.company_id, COALESCE(c.name, '') as company_name, j.external_id, j.title, j.description, j.location, j.remote, j.department, j.skills, j.url, j.posted_at, j.scraped_at, j.match_score, j.match_reason, j.status, j.created_at, j.experience_level, j.visa_mentioned, j.visa_sentiment, j.is_new_grad, j.skill_score, j.skill_matched, j.skill_missing, j.skill_reason, j.skill_scored_at
 		 FROM jobs j LEFT JOIN companies c ON j.company_id = c.id WHERE j.id = ?`, id,
-	).Scan(&j.ID, &j.CompanyID, &j.CompanyName, &j.ExternalID, &j.Title, &j.Description, &j.Location, &j.Remote, &j.Department, &j.Skills, &j.URL, &j.PostedAt, &j.ScrapedAt, &j.MatchScore, &j.MatchReason, &j.Status, &j.CreatedAt, &j.ExperienceLevel, &j.VisaMentioned, &j.VisaSentiment, &j.IsNewGrad)
+	).Scan(&j.ID, &j.CompanyID, &j.CompanyName, &j.ExternalID, &j.Title, &j.Description, &j.Location, &j.Remote, &j.Department, &j.Skills, &j.URL, &j.PostedAt, &j.ScrapedAt, &j.MatchScore, &j.MatchReason, &j.Status, &j.CreatedAt, &j.ExperienceLevel, &j.VisaMentioned, &j.VisaSentiment, &j.IsNewGrad, &j.SkillScore, &j.SkillMatched, &j.SkillMissing, &j.SkillReason, &j.SkillScoredAt)
 	if err != nil {
 		return nil, fmt.Errorf("getting job: %w", err)
 	}
 	return j, nil
 }
 
-func (d *DB) ListJobs(minScore float64, companyID string, onlyNew bool, onlyRemote bool, onlyVisaFriendly bool, onlyNewGrad bool) ([]Job, error) {
+func (d *DB) ListJobs(minScore float64, companyID string, onlyNew bool, onlyRemote bool, onlyVisaFriendly bool, onlyNewGrad bool, inCartOnly bool) ([]Job, error) {
 	where := "1=1"
 	var args []interface{}
 
 	if minScore > 0 {
-		where += " AND match_score >= ?"
+		where += " AND skill_score >= ?"
 		args = append(args, minScore)
 	}
 	if companyID != "" {
@@ -58,17 +59,20 @@ func (d *DB) ListJobs(minScore float64, companyID string, onlyNew bool, onlyRemo
 	if onlyNewGrad {
 		where += " AND is_new_grad = 1"
 	}
+	if inCartOnly {
+		where += " AND company_id IN (SELECT id FROM companies WHERE in_cart = 1)"
+	}
 
 	return d.listJobsWhere(where, args...)
 }
 
 
 func (d *DB) ListUnscoredJobs() ([]Job, error) {
-	return d.listJobsWhere("match_score IS NULL")
+	return d.listJobsWhere("skill_score IS NULL")
 }
 
 func (d *DB) listJobsWhere(where string, args ...interface{}) ([]Job, error) {
-	query := `SELECT j.id, j.company_id, COALESCE(c.name, '') as company_name, j.external_id, j.title, j.description, j.location, j.remote, j.department, j.skills, j.url, j.posted_at, j.scraped_at, j.match_score, j.match_reason, j.status, j.created_at, j.experience_level, j.visa_mentioned, j.visa_sentiment, j.is_new_grad
+	query := `SELECT j.id, j.company_id, COALESCE(c.name, '') as company_name, j.external_id, j.title, j.description, j.location, j.remote, j.department, j.skills, j.url, j.posted_at, j.scraped_at, j.match_score, j.match_reason, j.status, j.created_at, j.experience_level, j.visa_mentioned, j.visa_sentiment, j.is_new_grad, j.skill_score, j.skill_matched, j.skill_missing, j.skill_reason, j.skill_scored_at
 	FROM jobs j LEFT JOIN companies c ON j.company_id = c.id
 	WHERE ` + where + ` ORDER BY j.created_at DESC`
 
@@ -78,10 +82,10 @@ func (d *DB) listJobsWhere(where string, args ...interface{}) ([]Job, error) {
 	}
 	defer func() { _ = rows.Close() }()
 
-	var jobs []Job
+	jobs := make([]Job, 0)
 	for rows.Next() {
 		var j Job
-		if err := rows.Scan(&j.ID, &j.CompanyID, &j.CompanyName, &j.ExternalID, &j.Title, &j.Description, &j.Location, &j.Remote, &j.Department, &j.Skills, &j.URL, &j.PostedAt, &j.ScrapedAt, &j.MatchScore, &j.MatchReason, &j.Status, &j.CreatedAt, &j.ExperienceLevel, &j.VisaMentioned, &j.VisaSentiment, &j.IsNewGrad); err != nil {
+		if err := rows.Scan(&j.ID, &j.CompanyID, &j.CompanyName, &j.ExternalID, &j.Title, &j.Description, &j.Location, &j.Remote, &j.Department, &j.Skills, &j.URL, &j.PostedAt, &j.ScrapedAt, &j.MatchScore, &j.MatchReason, &j.Status, &j.CreatedAt, &j.ExperienceLevel, &j.VisaMentioned, &j.VisaSentiment, &j.IsNewGrad, &j.SkillScore, &j.SkillMatched, &j.SkillMissing, &j.SkillReason, &j.SkillScoredAt); err != nil {
 			return nil, fmt.Errorf("scanning job: %w", err)
 		}
 		jobs = append(jobs, j)
@@ -109,4 +113,14 @@ func (d *DB) UpdateJobClassification(id string, experienceLevel string, isNewGra
 
 func (d *DB) ListUnclassifiedJobs() ([]Job, error) {
 	return d.listJobsWhere("experience_level IS NULL")
+}
+
+func (d *DB) UpdateJobSkillScore(id string, score float64, matched, missing []string, reason string) error {
+	matchedJSON, _ := json.Marshal(matched)
+	missingJSON, _ := json.Marshal(missing)
+	_, err := d.Exec(
+		`UPDATE jobs SET skill_score = ?, skill_matched = ?, skill_missing = ?, skill_reason = ?, skill_scored_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		score, string(matchedJSON), string(missingJSON), reason, id,
+	)
+	return err
 }

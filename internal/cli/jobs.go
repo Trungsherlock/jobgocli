@@ -7,8 +7,10 @@ import (
 	"runtime"
 	"text/tabwriter"
 	"encoding/json"
+	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/Trungsherlock/jobgocli/internal/filter"
 )
 
 var jobsCmd = &cobra.Command{
@@ -20,18 +22,43 @@ var jobsListCmd = &cobra.Command{
 	Use:	"list",
 	Short:	"List jobs sorted by match score",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		minMatch, _ := cmd.Flags().GetInt("min-match")
+		minScore, _ := cmd.Flags().GetFloat64("min-score")
 		company, _ := cmd.Flags().GetString("company")
 		onlyNew, _ := cmd.Flags().GetBool("new")
-		onlyRemote, _ := cmd.Flags().GetBool("remote")
-		visaFriendly, _ := cmd.Flags().GetBool("visa-friendly")
-		newGrad, _ := cmd.Flags().GetBool("new-grad")
+		titleFlag, _ := cmd.Flags().GetString("title")
+		locationFlag, _ := cmd.Flags().GetString("location")
+		h1bOnly, _ := cmd.Flags().GetBool("h1b")
+		newGradOnly, _ := cmd.Flags().GetBool("new-grad")
 
 
-		jobs, err := db.ListJobs(float64(minMatch), company, onlyNew, onlyRemote, visaFriendly, newGrad)
+		jobs, err := db.ListJobs(minScore, company, onlyNew, false, false, false, false)
 		if err != nil {
 			return fmt.Errorf("listing jobs: %w", err)
 		}	
+
+		params := filter.Params{}
+		if titleFlag != "" {
+			params.Titles = strings.Split(titleFlag, ",")
+		}
+		if locationFlag != "" {
+			params.Locations = strings.Split(locationFlag, ",")
+		}
+		params.NewGrad = newGradOnly
+		params.H1BOnly = h1bOnly
+
+		var sponsorIDs map[string]bool
+		if h1bOnly {
+			companies, _ := db.ListCompanies()
+			sponsorIDs = make(map[string]bool)
+			for _, c := range companies {
+				if c.SponsorsH1b {
+					sponsorIDs[c.ID] = true
+				}
+			}
+		}
+
+		jobs = filter.Apply(jobs, filter.Build(params, sponsorIDs))
+
 		if len(jobs) == 0 {
 			fmt.Println("No jobs found matching the criteria.")
 			return nil
@@ -49,8 +76,8 @@ var jobsListCmd = &cobra.Command{
 		for _, j := range jobs {
 			id := j.ID
 			score := "-"
-			if j.MatchScore != nil {
-				score = fmt.Sprintf("%.0f", *j.MatchScore)
+			if j.SkillScore != nil {
+				score = fmt.Sprintf("%.0f", *j.SkillScore)
 			}
 			location := ""
 			if j.Location != nil {
@@ -103,11 +130,17 @@ var jobsShowCmd = &cobra.Command{
 		fmt.Printf("URL:         %s\n", job.URL)
 		fmt.Printf("Status:      %s\n", job.Status)
 
-		if job.MatchScore != nil {
-			fmt.Printf("Match Score: %.0f\n", *job.MatchScore)
+		if job.SkillScore != nil {
+			fmt.Printf("Skill Score: %.0f\n", *job.SkillScore)
 		}
-		if job.MatchReason != nil {
-			fmt.Printf("Match Why:   %s\n", *job.MatchReason)
+		if job.SkillReason != nil {
+			fmt.Printf("Skill Reason:   %s\n", *job.SkillReason)
+		}
+		if job.SkillMatched != nil {
+			fmt.Printf("Matched: 	%s\n", *job.SkillMatched)
+		}
+		if job.SkillMissing != nil {
+			fmt.Printf("Missing:	%s\n", *job.SkillMissing)
 		}
 
 		if job.Description != nil {
@@ -185,12 +218,11 @@ func init() {
 	jobsCmd.AddCommand(jobsOpenCmd)
 	jobsCmd.AddCommand(jobsUpdateCmd)
 
-	jobsListCmd.Flags().Int("min-match", 0, "Minimum matching score")
-	jobsListCmd.Flags().String("company", "", "Company name")
-	jobsListCmd.Flags().Bool("new", false, "New Jobs (only unseen)")
-	jobsListCmd.Flags().Bool("remote", false, "Only show remote jobs")
-	jobsListCmd.Flags().Bool("visa-friendly", false, "Only show jobs from H1B sponsors (no negative visa sentiment)")
-	jobsListCmd.Flags().Bool("new-grad", false, "Only show new-grad friendly jobs")
-	jobsUpdateCmd.Flags().String("status", "", "New status (applied, phone_screen, interview, offer, rejected)")
-	jobsUpdateCmd.Flags().String("notes", "", "Notes")
+	jobsListCmd.Flags().Float64("min-score", 0, "Minimum skill score (0-100)")
+	jobsListCmd.Flags().String("company", "", "Filter by company ID")
+	jobsListCmd.Flags().Bool("new", false, "Only unseen jobs")
+	jobsListCmd.Flags().String("title", "", "Filter by title (e.g. 'software engineer,backend engineer')")
+	jobsListCmd.Flags().String("location", "", "Filter by location (e.g. 'US,remote')")
+	jobsListCmd.Flags().Bool("new-grad", false, "Only new-grad friendly jobs")
+	jobsListCmd.Flags().Bool("h1b", false, "Only H1B-sponsoring companies")
 }

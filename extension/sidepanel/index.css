@@ -308,3 +308,31 @@ input[type="range"] {
     color: #22c55e;
     font-weight: 500;
 }
+
+.filter-input {
+    width: 100%;
+    padding: 4px 8px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 12px;
+    margin-bottom: 4px;
+    box-sizing: border-box;
+}
+
+.filter-toggles {
+    display: flex;
+    gap: 10px;
+    font-size: 12px;
+}
+
+.detail-matched {
+    font-size: 11px;
+    color: #16a34a;
+    margin: 2px 0;
+}
+
+.detail-missing {
+    font-size: 11px;
+    color: #dc2626;
+    margin: 2px 0;
+}

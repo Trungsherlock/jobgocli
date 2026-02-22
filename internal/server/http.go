@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/Trungsherlock/jobgocli/internal/database"
 	"github.com/Trungsherlock/jobgocli/internal/scraper"
 	"github.com/Trungsherlock/jobgocli/internal/worker"
+	"github.com/Trungsherlock/jobgocli/internal/filter"
+	"github.com/Trungsherlock/jobgocli/internal/matcher"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -58,20 +61,48 @@ func (s *Server) ListenAndServe(port int) error {
 // --- Handlers ---
 
 func (s *Server) listJobs(w http.ResponseWriter, r *http.Request) {
-	minScore, _ := strconv.ParseFloat(r.URL.Query().Get("min_score"), 64)
-	companyID := r.URL.Query().Get("company_id")
-	onlyNew := r.URL.Query().Get("new") == "true"
-	onlyRemote := r.URL.Query().Get("remote") == "true"
-	visaFriendly := r.URL.Query().Get("visa_friendly") == "true"
-	newGrad := r.URL.Query().Get("new_grad") == "true"
+    minScore, _ := strconv.ParseFloat(r.URL.Query().Get("min_score"), 64)
+    companyID := r.URL.Query().Get("company_id")
+    onlyNew := r.URL.Query().Get("new") == "true"
+    titleParam := r.URL.Query().Get("title")
+    locationParam := r.URL.Query().Get("location")
+    h1bOnly := r.URL.Query().Get("h1b") == "true"
+    newGrad := r.URL.Query().Get("new_grad") == "true"
+    inCart := r.URL.Query().Get("in_cart") == "true"
 
-	jobs, err := s.db.ListJobs(minScore, companyID, onlyNew, onlyRemote, visaFriendly, newGrad)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, jobs)
+    // SQL handles score + status
+    jobs, err := s.db.ListJobs(minScore, companyID, onlyNew, false, false, false, inCart)
+    if err != nil {
+        writeError(w, http.StatusInternalServerError, err.Error())
+        return
+    }
+
+    // Build Go filters
+    params := filter.Params{}
+    if titleParam != "" {
+        params.Titles = strings.Split(titleParam, ",")
+    }
+    if locationParam != "" {
+        params.Locations = strings.Split(locationParam, ",")
+    }
+    params.NewGrad = newGrad
+    params.H1BOnly = h1bOnly
+
+    var sponsorIDs map[string]bool
+    if h1bOnly {
+        companies, _ := s.db.ListCompanies()
+        sponsorIDs = make(map[string]bool)
+        for _, c := range companies {
+            if c.SponsorsH1b {
+                sponsorIDs[c.ID] = true
+            }
+        }
+    }
+
+    jobs = filter.Apply(jobs, filter.Build(params, sponsorIDs))
+    writeJSON(w, http.StatusOK, jobs)
 }
+
 
 
 func (s *Server) getJob(w http.ResponseWriter, r *http.Request) {
@@ -193,6 +224,17 @@ func (s *Server) scanCart(w http.ResponseWriter, r *http.Request) {
 	for _, res := range results {
 		if res.Err == nil {
 			totalNew += res.JobCount
+		}
+	}
+
+	// Score new jobs
+	profile, _ := s.db.GetProfile()
+	if profile != nil {
+		unscoredJobs, _ := s.db.ListUnscoredJobs()
+		pipeline := matcher.NewPipeline()
+		for _, job := range unscoredJobs {
+			result := pipeline.Score(job, *profile)
+			_ = s.db.UpdateJobSkillScore(job.ID, result.Score, result.MatchedSkills, result.MissingSkills, result.Reason)
 		}
 	}
 
