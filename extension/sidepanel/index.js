@@ -49,10 +49,13 @@ async function loadJobs() {
   list.innerHTML = "<li>Loading…</li>";
 
   const params = {};
+  const title = document.getElementById("filter-title").value.trim();
+  const location = document.getElementById("filter-location").value.trim();
+  if (title) params.title = title;
+  if (location) params.location = location;
   if (document.getElementById("filter-new").checked)     params.new = "true";
-  if (document.getElementById("filter-remote").checked)   params.remote = "true";
-  if (document.getElementById("filter-visa").checked)     params.visa_friendly = "true";
-  if (document.getElementById("filter-newgrad").checked)  params.new_grad = "true";
+  if (document.getElementById("filter-newgrad").checked) params.new_grad = "true";
+  if (document.getElementById("filter-h1b").checked)     params.h1b = "true";
 
   try {
     const jobs = await api.listJobs(params);
@@ -66,17 +69,18 @@ async function loadJobs() {
 function jobCard(j) {
   const tags = [
     j.is_new_grad ? '<span class="tag tag-newgrad">new grad</span>' : "",
-    j.visa_sentiment === "positive" ? '<span class="tag tag-visa">visa+</span>' : "",
     j.remote ? '<span class="tag tag-remote">remote</span>' : "",
   ].join("");
 
-  const score = j.match_score != null ? Math.round(j.match_score) : "—";
+  const score = j.skill_score != null ? Math.round(j.skill_score) : "—";
   const desc = j.description
     ? j.description.replace(/<[^>]+>/g, "").slice(0, 220) + "…"
     : "No description available.";
-  const reason = j.match_reason
-    ? `<div class="detail-reason">Match: ${j.match_reason}</div>`
-    : "";
+
+  const parseList = (s) => { try { return JSON.parse(s).join(", "); } catch { return s; } };
+  const matched = j.skill_matched ? `<div class="detail-matched">✓ ${parseList(j.skill_matched)}</div>` : "";
+  const missing = j.skill_missing ? `<div class="detail-missing">✗ Missing: ${parseList(j.skill_missing)}</div>` : "";
+  const reason  = j.skill_reason  ? `<div class="detail-reason">${j.skill_reason}</div>` : "";
 
   return `<li class="job-item" data-id="${j.id}">
     <div class="job-header">
@@ -88,7 +92,7 @@ function jobCard(j) {
     </div>
     <div class="job-detail hidden">
       <p class="detail-desc">${desc}</p>
-      ${reason}
+      ${matched}${missing}${reason}
       <a class="btn-apply" href="${j.url}" target="_blank">Apply ↗</a>
     </div>
   </li>`;
@@ -103,8 +107,16 @@ document.getElementById("jobs-list").addEventListener("click", (e) => {
   li.classList.toggle("expanded");
 });
 
-["filter-new", "filter-remote", "filter-visa", "filter-newgrad"].forEach((id) => {
+["filter-new", "filter-newgrad", "filter-h1b"].forEach((id) => {
   document.getElementById(id).addEventListener("change", loadJobs);
+});
+
+let filterDebounce;
+["filter-title", "filter-location"].forEach((id) => {
+  document.getElementById(id).addEventListener("input", () => {
+    clearTimeout(filterDebounce);
+    filterDebounce = setTimeout(loadJobs, 400);
+  });
 });
 
 // --- Cart tab ---

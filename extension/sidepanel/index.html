@@ -24,10 +24,13 @@
     <!-- Jobs tab -->
     <section id="tab-jobs" class="tab-panel active">
         <div class="toolbar">
-            <label><input type="checkbox" id="filter-new"> New only</label>
-            <label><input type="checkbox" id="filter-remote"> Remote</label>
-            <label><input type="checkbox" id="filter-visa"> Visa friendly</label>
-            <label><input type="checkbox" id="filter-newgrad"> New grad</label>
+            <input type="text" id="filter-title" class="filter-input" placeholder="Title (e.g. software engineer)" />
+            <input type="text" id="filter-location" class="filter-input" placeholder="Location (e.g. US, remote)" />
+            <div class="filter-toggles">
+                <label><input type="checkbox" id="filter-new"> New only</label>
+                <label><input type="checkbox" id="filter-newgrad"> New grad</label>
+                <label><input type="checkbox" id="filter-h1b"> H1B</label>
+            </div>
         </div>
         <ul id="jobs-list" class="item-list"></ul>
     </section>

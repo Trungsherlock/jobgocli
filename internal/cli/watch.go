@@ -112,10 +112,10 @@ func runCycle(ctx context.Context, minScore float64, notifiers []notifier.Notifi
 	profile, _ := db.GetProfile()
 	if profile != nil {
 		unscoredJobs, _ := db.ListUnscoredJobs()
-		m := matcher.NewKeywordMatcher()
+		pipeline := matcher.NewPipeline()
 		for _, job := range unscoredJobs {
-			result := m.Match(job, *profile)
-			_ = db.UpdateJobMatch(job.ID, result.Score, result.Reason)
+			result := pipeline.Score(job, *profile)
+			_ = db.UpdateJobSkillScore(job.ID, result.Score, result.MatchedSkills, result.MissingSkills, result.Reason)
 		}
 	}
 
@@ -124,8 +124,8 @@ func runCycle(ctx context.Context, minScore float64, notifiers []notifier.Notifi
         highMatches, _ := db.ListJobs(minScore, "", true, false, false, false)
         for _, j := range highMatches {
             score := 0.0
-            if j.MatchScore != nil {
-                score = *j.MatchScore
+            if j.SkillScore != nil {
+                score = *j.SkillScore
             }
             companyName := j.CompanyID[:8]
             c, err := db.GetCompany(j.CompanyID)

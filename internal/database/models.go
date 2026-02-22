@@ -42,6 +42,11 @@ type Job struct {
 	VisaMentioned	bool		`json:"visa_mentioned"`
 	VisaSentiment	*string		`json:"visa_sentiment"`
 	IsNewGrad		bool		`json:"is_new_grad"`
+	SkillScore		*float64	`json:"skill_score"`
+	SkillMatched	*string 	`json:"skill_matched"`
+	SkillMissing	*string		`json:"skill_missing"`
+	SkillReason		*string 	`json:"skill_reason"`
+	SkillScoredAt	*time.Time	`json:"skill_scored_at"`
 }
 
 type Profile struct {
