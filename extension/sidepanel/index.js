@@ -44,7 +44,7 @@ async function checkHealth() {
 }
 
 // --- Jobs tab ---
-async function loadJobs() {
+async function loadJobs(extraParams = {}) {
   const list = document.getElementById("jobs-list");
   list.innerHTML = "<li>Loading…</li>";
 
@@ -56,6 +56,8 @@ async function loadJobs() {
   if (document.getElementById("filter-new").checked)     params.new = "true";
   if (document.getElementById("filter-newgrad").checked) params.new_grad = "true";
   if (document.getElementById("filter-h1b").checked)     params.h1b = "true";
+
+  Object.assign(params, extraParams);
 
   try {
     const jobs = await api.listJobs(params);
@@ -166,7 +168,13 @@ document.getElementById("btn-scan").addEventListener("click", async () => {
   try {
     const data = await api.scanCart();
     status.textContent = `Done — ${data.new_jobs} new job(s)`;
-    loadJobs();
+    // Switch to Jobs tab and show only cart-company jobs
+    document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach((p) => p.classList.add("hidden"));
+    const jobsTab = document.querySelector('[data-tab="jobs"]');
+    jobsTab.classList.add("active");
+    document.getElementById("tab-jobs").classList.remove("hidden");
+    loadJobs({ in_cart: "true" });
   } catch (err) {
     status.textContent = `Error: ${err.message}`;
   }

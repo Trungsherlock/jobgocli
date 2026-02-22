@@ -83,7 +83,7 @@ func (m *MCPServer) searchJobs(ctx context.Context, req mcp.CallToolRequest) (*m
 	visaFriendly, _ := args["visa_friendly"].(bool)
 	newGrad, _ := args["new_grad"].(bool)
 
-	jobs, err := m.db.ListJobs(minScore, "", newOnly, remoteOnly, visaFriendly, newGrad)
+	jobs, err := m.db.ListJobs(minScore, "", newOnly, remoteOnly, visaFriendly, newGrad, false)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}

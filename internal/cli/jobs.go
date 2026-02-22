@@ -31,7 +31,7 @@ var jobsListCmd = &cobra.Command{
 		newGradOnly, _ := cmd.Flags().GetBool("new-grad")
 
 
-		jobs, err := db.ListJobs(minScore, company, onlyNew, false, false, false)
+		jobs, err := db.ListJobs(minScore, company, onlyNew, false, false, false, false)
 		if err != nil {
 			return fmt.Errorf("listing jobs: %w", err)
 		}	

@@ -34,7 +34,7 @@ func (d *DB) GetJob(id string) (*Job, error) {
 	return j, nil
 }
 
-func (d *DB) ListJobs(minScore float64, companyID string, onlyNew bool, onlyRemote bool, onlyVisaFriendly bool, onlyNewGrad bool) ([]Job, error) {
+func (d *DB) ListJobs(minScore float64, companyID string, onlyNew bool, onlyRemote bool, onlyVisaFriendly bool, onlyNewGrad bool, inCartOnly bool) ([]Job, error) {
 	where := "1=1"
 	var args []interface{}
 
@@ -59,6 +59,9 @@ func (d *DB) ListJobs(minScore float64, companyID string, onlyNew bool, onlyRemo
 	if onlyNewGrad {
 		where += " AND is_new_grad = 1"
 	}
+	if inCartOnly {
+		where += " AND company_id IN (SELECT id FROM companies WHERE in_cart = 1)"
+	}
 
 	return d.listJobsWhere(where, args...)
 }
@@ -79,7 +82,7 @@ func (d *DB) listJobsWhere(where string, args ...interface{}) ([]Job, error) {
 	}
 	defer func() { _ = rows.Close() }()
 
-	var jobs []Job
+	jobs := make([]Job, 0)
 	for rows.Next() {
 		var j Job
 		if err := rows.Scan(&j.ID, &j.CompanyID, &j.CompanyName, &j.ExternalID, &j.Title, &j.Description, &j.Location, &j.Remote, &j.Department, &j.Skills, &j.URL, &j.PostedAt, &j.ScrapedAt, &j.MatchScore, &j.MatchReason, &j.Status, &j.CreatedAt, &j.ExperienceLevel, &j.VisaMentioned, &j.VisaSentiment, &j.IsNewGrad, &j.SkillScore, &j.SkillMatched, &j.SkillMissing, &j.SkillReason, &j.SkillScoredAt); err != nil {

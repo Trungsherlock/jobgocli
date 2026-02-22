@@ -1,6 +1,7 @@
 package filter
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/Trungsherlock/jobgocli/internal/database"
@@ -94,16 +95,21 @@ func (f *LocationFilter) Apply(job database.Job) bool {
 	return false
 }
 
-type NewGradFilter struct {}
+var seniorPattern = regexp.MustCompile(`(?i)\b(senior|staff|lead|sr\.?|principal|ii|iii|[23])\b`)
 
-func (f *NewGradFilter) Name() string {return "new_grad"}
+type NewGradFilter struct{}
+
+func (f *NewGradFilter) Name() string { return "new_grad" }
 
 func (f *NewGradFilter) Apply(job database.Job) bool {
+	if seniorPattern.MatchString(job.Title) {
+		return false
+	}
 	if job.IsNewGrad {
 		return true
 	}
 	if job.ExperienceLevel != nil && *job.ExperienceLevel == "new_grad" {
-		return false
+		return true
 	}
 	return false
 }

@@ -68,9 +68,10 @@ func (s *Server) listJobs(w http.ResponseWriter, r *http.Request) {
     locationParam := r.URL.Query().Get("location")
     h1bOnly := r.URL.Query().Get("h1b") == "true"
     newGrad := r.URL.Query().Get("new_grad") == "true"
+    inCart := r.URL.Query().Get("in_cart") == "true"
 
     // SQL handles score + status
-    jobs, err := s.db.ListJobs(minScore, companyID, onlyNew, false, false, false)
+    jobs, err := s.db.ListJobs(minScore, companyID, onlyNew, false, false, false, inCart)
     if err != nil {
         writeError(w, http.StatusInternalServerError, err.Error())
         return
