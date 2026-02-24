@@ -1,7 +1,7 @@
 package matcher
 
 import (
-	"github.com/Trungsherlock/jobgocli/internal/database"
+	"github.com/Trungsherlock/jobgo/internal/database"
 	"github.com/spf13/viper"
 )
 

@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/Trungsherlock/jobgocli/internal/database"
+	"github.com/Trungsherlock/jobgo/internal/database"
 )
 
 type Filter interface {
@@ -66,6 +66,13 @@ func (f *TitleFilter) Apply(job database.Job) bool {
 	return false
 }
 
+var locationAliases = map[string]string{
+	"us":  "united states",
+	"usa": "united states",
+	"uk":  "united kingdom",
+	"gb":  "united kingdom",
+}
+
 type LocationFilter struct {
 	Locations []string
 }
@@ -89,6 +96,9 @@ func (f *LocationFilter) Apply(job database.Job) bool {
 			continue
 		}
 		if strings.Contains(jobLocation, locLower) {
+			return true
+		}
+		if expanded, ok := locationAliases[locLower]; ok && strings.Contains(jobLocation, expanded) {
 			return true
 		}
 	}

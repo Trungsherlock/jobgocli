@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Trungsherlock/jobgocli/internal/database"
+	"github.com/Trungsherlock/jobgo/internal/database"
 )
 
 func TestLLMMatcher(t *testing.T) {

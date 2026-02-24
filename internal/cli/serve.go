@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"github.com/Trungsherlock/jobgocli/internal/server"
+	"github.com/Trungsherlock/jobgo/internal/server"
 	"github.com/spf13/cobra"
 )
 

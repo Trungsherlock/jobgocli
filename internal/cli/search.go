@@ -6,11 +6,11 @@ import (
 	"time"
 	"os"
 
-	"github.com/Trungsherlock/jobgocli/internal/database"
-	"github.com/Trungsherlock/jobgocli/internal/matcher"
-	"github.com/Trungsherlock/jobgocli/internal/scraper"
-	"github.com/Trungsherlock/jobgocli/internal/worker"
-	"github.com/Trungsherlock/jobgocli/internal/h1b"
+	"github.com/Trungsherlock/jobgo/internal/database"
+	"github.com/Trungsherlock/jobgo/internal/matcher"
+	"github.com/Trungsherlock/jobgo/internal/scraper"
+	"github.com/Trungsherlock/jobgo/internal/worker"
+	"github.com/Trungsherlock/jobgo/internal/h1b"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

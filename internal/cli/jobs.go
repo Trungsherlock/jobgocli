@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/Trungsherlock/jobgocli/internal/filter"
+	"github.com/Trungsherlock/jobgo/internal/filter"
 )
 
 var jobsCmd = &cobra.Command{
@@ -225,4 +225,5 @@ func init() {
 	jobsListCmd.Flags().String("location", "", "Filter by location (e.g. 'US,remote')")
 	jobsListCmd.Flags().Bool("new-grad", false, "Only new-grad friendly jobs")
 	jobsListCmd.Flags().Bool("h1b", false, "Only H1B-sponsoring companies")
+	jobsListCmd.Flags().String("output", "", "Output format: json")
 }

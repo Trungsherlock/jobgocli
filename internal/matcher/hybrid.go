@@ -1,7 +1,7 @@
 package matcher
 
 import (
-	"github.com/Trungsherlock/jobgocli/internal/database"
+	"github.com/Trungsherlock/jobgo/internal/database"
 )
 
 type HybridMatcher struct {

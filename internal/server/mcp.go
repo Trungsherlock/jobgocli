@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strings"
 
-	"github.com/Trungsherlock/jobgocli/internal/database"
+	"github.com/Trungsherlock/jobgo/internal/database"
+	"github.com/Trungsherlock/jobgo/internal/filter"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 )
@@ -33,10 +36,11 @@ func (m *MCPServer) registerTools() {
 		mcp.NewTool("search_jobs",
 			mcp.WithDescription("Search for jobs matching criteria. Returns a list of job postings with match scores."),
 			mcp.WithNumber("min_score", mcp.Description("Minimum match score (0-100)"), mcp.DefaultNumber(0)),
-			mcp.WithBoolean("remote_only", mcp.Description("Only return remote jobs"), mcp.DefaultBool(false)),
+			mcp.WithString("title", mcp.Description("Filter by job title (e.g. 'software engineer')")),
+			mcp.WithString("location", mcp.Description("Filter by location (e.g. 'US,remote')")),
 			mcp.WithBoolean("new_only", mcp.Description("Only return unseen jobs"), mcp.DefaultBool(false)),
-			mcp.WithBoolean("visa_friendly", mcp.Description("Only return jobs from H1B sponsors"), mcp.DefaultBool(false)),
 			mcp.WithBoolean("new_grad", mcp.Description("Only return new-grad friendly jobs"), mcp.DefaultBool(false)),
+			mcp.WithBoolean("h1b_only", mcp.Description("Only return jobs from H1B sponsors"), mcp.DefaultBool(false)),
 		),
 		m.searchJobs,
 	)
@@ -73,68 +77,82 @@ func (m *MCPServer) registerTools() {
 		),
 		m.getStats,
 	)
+
+	// analyze_skill_gap tool
+	m.server.AddTool(
+		mcp.NewTool("analyze_skill_gap",
+            mcp.WithDescription("Analyze which skills appear most often in your top-matched jobs but are missing from your profile. Useful for identifying what to learn next."),
+            mcp.WithNumber("min_score", mcp.Description("Only analyze jobs above this score (default 60)"), mcp.DefaultNumber(60)),
+        ),
+		m.analyzeSkillGap,
+	)
 }
 
 func (m *MCPServer) searchJobs(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	args, _ := req.Params.Arguments.(map[string]interface{})
 	minScore, _ := args["min_score"].(float64)
-	remoteOnly, _ := args["remote_only"].(bool)
+	titleParam, _ := args["title"].(string)
+	locationParam, _ := args["location"].(string)
 	newOnly, _ := args["new_only"].(bool)
-	visaFriendly, _ := args["visa_friendly"].(bool)
 	newGrad, _ := args["new_grad"].(bool)
+	h1bOnly, _ := args["h1b_only"].(bool)
 
-	jobs, err := m.db.ListJobs(minScore, "", newOnly, remoteOnly, visaFriendly, newGrad, false)
+	jobs, err := m.db.ListJobs(minScore, "", newOnly, false, false, false, false)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
+
+	params := filter.Params{NewGrad: newGrad, H1BOnly: h1bOnly}
+	if titleParam != "" {
+		params.Titles = strings.Split(titleParam, ",")
+	}
+	if locationParam != "" {
+		params.Locations = strings.Split(locationParam, ",")
+	}
+	var sponsorIDs map[string]bool
+	if h1bOnly {
+		companies, _ := m.db.ListCompanies()
+		sponsorIDs = make(map[string]bool)
+		for _, c := range companies {
+			if c.SponsorsH1b {
+				sponsorIDs[c.ID] = true
+			}
+		}
+	}
+	jobs = filter.Apply(jobs, filter.Build(params, sponsorIDs))
 
 	// Build a concise summary for the AI
 	type jobSummary struct {
 		ID       		string   	`json:"id"`
 		Title    		string   	`json:"title"`
 		Company  		string   	`json:"company"`
-		SponsorsH1B		bool		`json:"sponsors_h1b"`
 		Location 		string   	`json:"location"`
 		Remote   		bool     	`json:"remote"`
-		Score    		*float64 	`json:"score"`
+		SkillScore    	*float64 	`json:"skill_score"`
+		MatchedSkills   *string 	`json:"matched_skills,omitempty"`
+		MissingSkills   *string 	`json:"missing_skills,omitempty"`
 		Status   		string   	`json:"status"`
 		URL      		string   	`json:"url"`
 		IsNewGrad		bool		`json:"is_new_grad"`
-		VisaSentiment	string		`json:"visa_sentiment,omitempty"`
 	}
 
 	summaries := make([]jobSummary, 0, len(jobs))
 	for _, j := range jobs {
-		companyName := j.CompanyID[:8]
-		c, err := m.db.GetCompany(j.CompanyID)
-		if err == nil {
-			companyName = c.Name
-		}
 		location := ""
 		if j.Location != nil {
 			location = *j.Location
 		}
-		sponsorsH1B := false
-		if c, err := m.db.GetCompany(j.CompanyID); err == nil {
-			companyName = c.Name
-			sponsorsH1B = c.SponsorsH1b
-		}
-		visaSentiment := ""
-		if j.VisaSentiment != nil {
-			visaSentiment = *j.VisaSentiment
-		}
 		summaries = append(summaries, jobSummary{
 			ID:       		j.ID,
 			Title:    		j.Title,
-			Company:  		companyName,
-			SponsorsH1B: 	sponsorsH1B,
 			Location: 		location,
 			Remote:   		j.Remote,
-			Score:    		j.MatchScore,
+			SkillScore:    	j.SkillScore,
+			MatchedSkills:  j.SkillMatched,
+			MissingSkills:  j.SkillMissing,
 			Status:   		j.Status,
 			URL:      		j.URL,
 			IsNewGrad: 		j.IsNewGrad,
-			VisaSentiment: 	visaSentiment,
 		})
 	}
 
@@ -175,11 +193,17 @@ func (m *MCPServer) getJobDetails(ctx context.Context, req mcp.CallToolRequest) 
 	if job.Description != nil {
 		details["description"] = *job.Description
 	}
-	if job.MatchScore != nil {
-		details["match_score"] = *job.MatchScore
+	if job.SkillScore != nil {
+		details["skill_score"] = *job.SkillScore
 	}
-	if job.MatchReason != nil {
-		details["match_reason"] = *job.MatchReason
+	if job.SkillReason != nil {
+		details["skill_reason"] = *job.SkillReason
+	}
+	if job.SkillMatched != nil {
+		details["matched_skills"] = *job.SkillMatched
+	}
+	if job.SkillMissing != nil {
+		details["missing_skills"] = *job.SkillMissing
 	}
 	details["is_new_grad"] = job.IsNewGrad
 	details["visa_mentioned"] = job.VisaMentioned
@@ -232,6 +256,71 @@ func (m *MCPServer) getStats(ctx context.Context, req mcp.CallToolRequest) (*mcp
 	data, _ := json.MarshalIndent(summaries, "", "  ")
 	return mcp.NewToolResultText(string(data)), nil
 }
+
+func (m *MCPServer) analyzeSkillGap(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+    args, _ := req.Params.Arguments.(map[string]interface{})
+    minScore, _ := args["min_score"].(float64)
+    if minScore == 0 {
+        minScore = 60
+    }
+
+    jobs, err := m.db.ListJobs(minScore, "", false, false, false, false, false)
+    if err != nil {
+        return mcp.NewToolResultError(err.Error()), nil
+    }
+
+    freq := map[string]int{}
+    total := 0
+    for _, j := range jobs {
+        if j.SkillMissing == nil {
+            continue
+        }
+        var missing []string
+        if err := json.Unmarshal([]byte(*j.SkillMissing), &missing); err != nil {
+            continue
+        }
+        for _, s := range missing {
+            freq[s]++
+        }
+        total++
+    }
+
+    if total == 0 {
+        return mcp.NewToolResultText("No scored jobs found. Run a scan first."), nil
+    }
+
+    type skillGap struct {
+        Skill     string  `json:"skill"`
+        Count     int     `json:"missing_in_jobs"`
+        Frequency float64 `json:"frequency_pct"`
+    }
+
+    gaps := make([]skillGap, 0, len(freq))
+    for skill, count := range freq {
+        gaps = append(gaps, skillGap{
+            Skill:     skill,
+            Count:     count,
+            Frequency: float64(count) / float64(total) * 100,
+        })
+    }
+
+    // Sort by frequency descending
+    sort.Slice(gaps, func(i, j int) bool {
+        return gaps[i].Count > gaps[j].Count
+    })
+
+    // Top 10
+    if len(gaps) > 10 {
+        gaps = gaps[:10]
+    }
+
+    data, _ := json.MarshalIndent(gaps, "", "  ")
+    return mcp.NewToolResultText(fmt.Sprintf(
+        "Top missing skills across %d jobs (score >= %.0f):\n%s",
+        total, minScore, string(data),
+    )), nil
+}
+
 
 func (m *MCPServer) ServeStdio() error {
 	return mcpserver.ServeStdio(m.server)
