@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/Trungsherlock/jobgocli/internal/database"
-	"github.com/Trungsherlock/jobgocli/internal/scraper"
+	"github.com/Trungsherlock/jobgo/internal/database"
+	"github.com/Trungsherlock/jobgo/internal/scraper"
 )
 
 type Result struct {

@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Trungsherlock/jobgocli/internal/database"
-	"github.com/Trungsherlock/jobgocli/internal/scraper"
-	"github.com/Trungsherlock/jobgocli/internal/worker"
-	"github.com/Trungsherlock/jobgocli/internal/filter"
-	"github.com/Trungsherlock/jobgocli/internal/matcher"
+	"github.com/Trungsherlock/jobgo/internal/database"
+	"github.com/Trungsherlock/jobgo/internal/scraper"
+	"github.com/Trungsherlock/jobgo/internal/worker"
+	"github.com/Trungsherlock/jobgo/internal/filter"
+	"github.com/Trungsherlock/jobgo/internal/matcher"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )

@@ -1,20 +1,20 @@
 # JobGo
 
-A Go CLI that crawls jobs from your target companies, matches them against your profile, and notifies you in real-time — with built-in H1B visa sponsorship tracking for international students and new grads.
+A Go CLI that crawls jobs from your target companies, scores them against your skill profile, and notifies you in real-time — with H1B visa sponsorship tracking for international students and new grads.
 
 ## Features
 
-- **Multi-platform scraping** — Fetches jobs from Lever and Greenhouse career pages
-- **Concurrent worker pool** — Scrapes multiple companies in parallel with configurable concurrency
-- **Smart matching** — Keyword-based scoring with optional LLM-powered semantic matching via Claude API
-- **H1B sponsorship tracking** — Import USCIS employer data, link companies, and boost/penalize jobs based on visa stance
-- **Job classification** — Auto-detects experience level (intern/entry/mid/senior/staff), new grad roles, and visa sentiment
-- **H1B-aware scoring** — Adjusts match scores based on sponsorship history, visa sentiment, and new grad fit
-- **Watch mode** — Background polling with desktop, terminal, and webhook notifications
-- **Application tracking** — Track your pipeline from applied to offer
-- **REST API** — Serve job data over HTTP for integrations
+- **Skill-based scoring** — Extracts required/preferred/mentioned skills from job descriptions and scores 0–100 based on weighted overlap with your profile
+- **LLM matching** — Optional Claude-powered semantic skill scoring (keyword, llm, or hybrid mode)
+- **Composable filters** — Title, location, new-grad, and H1B filters work independently from scoring
+- **Skill taxonomy** — 80+ canonical skills with alias resolution (`k8s`→`Kubernetes`, `golang`→`Go`, etc.)
+- **Skill gap analysis** — Finds which skills appear most in your top jobs but are missing from your profile
+- **Multi-platform scraping** — Lever and Greenhouse career pages, concurrent worker pool
+- **H1B sponsorship tracking** — Import USCIS employer data, auto-link companies, filter by sponsor status
+- **Watch mode** — Background polling with profile-aware filtering, desktop/terminal/webhook notifications
+- **Application tracking** — Pipeline from `new` → `applied` → `interview` → `offer`
+- **REST API + Chrome extension** — Browse and filter jobs from a side panel
 - **MCP server** — Expose tools for AI agents via Model Context Protocol
-- **JSON output** — Pipe any list command to `jq` with `-o json`
 
 ## Architecture
 
@@ -24,125 +24,164 @@ internal/
   cli/                  Cobra command definitions
   database/             SQLite + migration runner + repositories
   scraper/              Scraper interface + Lever/Greenhouse adapters
-  matcher/              Matcher interface + keyword/LLM/hybrid implementations
-  worker/               Goroutine worker pool with channel-based job queue
-  notifier/             Notifier interface + terminal/desktop/webhook
+  skills/               Skill taxonomy, alias resolution, job/resume extractor
+  matcher/              Keyword scorer, LLM scorer, hybrid pipeline
+  filter/               Composable filters: title, location, new-grad, H1B
+  worker/               Goroutine worker pool
+  notifier/             Terminal, desktop, and webhook notifiers
   server/               REST API (chi) + MCP server (stdio/SSE)
   h1b/                  H1B importer, classifier, and scorer
-migrations/             Versioned SQL migrations
-data/                   CSV data files (companies.csv, h1b_employers.csv)
+migrations/             Versioned SQL migrations (001–005)
+data/                   companies.csv, h1b_employers.csv
+extension/              Chrome MV3 side panel
 ```
+
+---
 
 ## Quick Start
 
-### Install
+### 1. Install
 
 ```bash
-go install github.com/Trungsherlock/jobgocli/cmd/jobgo@latest
-```
-
-Or build from source:
-
-```bash
-git clone https://github.com/Trungsherlock/jobgocli.git
+git clone https://github.com/Trungsherlock/jobgo.git
 cd jobgocli
-make build
+make install   # installs 'jobgo' to $GOPATH/bin
 ```
 
-### Set up your profile
+`make install` runs `go install ./cmd/jobgo` from the repo root — after that, `jobgo` is available anywhere in your terminal.
+
+To just build locally without installing:
+
+```bash
+go build -o bin/jobgo ./cmd/jobgo
+./bin/jobgo --help
+```
+
+### 2. Set up your profile
 
 ```bash
 jobgo profile set \
-  --name "Your Name" \
-  --skills "Go,PostgreSQL,Docker,Kubernetes" \
+  --name "Jane Smith" \
+  --skills "Go,PostgreSQL,Docker,Kubernetes,AWS" \
   --roles "backend engineer,SRE" \
   --locations "remote,San Francisco" \
   --experience 1 \
-  --visa   # set if you need H1B sponsorship
+  --visa          # include if you need H1B sponsorship
 
 jobgo profile show
 ```
 
-### Add companies to track
+Skills are normalized automatically — `k8s`, `golang`, `postgres` are resolved to their canonical names.
 
-Add one at a time:
+### 3. Add companies to track
 
 ```bash
+# One at a time
 jobgo company add --name "Stripe" --platform lever --slug stripe
 jobgo company add --name "Airbnb" --platform greenhouse --slug airbnb
-```
 
-Or bulk import from CSV:
-
-```bash
+# Or bulk import
 jobgo company import data/companies.csv
 jobgo company list
 ```
 
-The CSV format is `name,platform,slug` — edit [data/companies.csv](data/companies.csv) to add your targets.
+The CSV format is `name,platform,slug`. Edit [data/companies.csv](data/companies.csv) to add your targets.
 
-### Import H1B sponsorship data
-
-Download the USCIS H1B Employer Data Hub CSV from [uscis.gov](https://www.uscis.gov/tools/reports-and-studies/h-1b-employer-data-hub) and run:
-
-```bash
-jobgo h1b import data/h1b_employers.csv
-jobgo h1b status
-```
-
-This imports ~24,000+ employer records and auto-links your tracked companies to their sponsorship history.
-
-### Search for jobs
+### 4. Scrape and score jobs
 
 ```bash
 jobgo search
 ```
 
-This scrapes all tracked companies, stores new jobs, scores them against your profile, classifies them (experience level, visa stance), and applies H1B adjustments if `--visa` is set.
+This scrapes all enabled companies, stores new jobs, and scores each one against your profile. A score of 80+ means you match most required skills.
 
-### Browse results
+---
+
+## Daily Workflow
+
+### Browse jobs
 
 ```bash
-# All jobs sorted by match score
+# All jobs, sorted by skill score
 jobgo jobs list
 
-# Filter by score, remote, or new only
-jobgo jobs list --min-match 50 --remote --new
+# Filter by minimum score
+jobgo jobs list --min-score 60
 
-# Only visa-friendly jobs (H1B sponsors, no negative visa sentiment)
-jobgo jobs list --visa-friendly
+# Only new (unseen) jobs above a threshold
+jobgo jobs list --new --min-score 50
 
-# Only new grad roles
+# Filter by title keyword
+jobgo jobs list --title "backend engineer,SRE"
+
+# Filter by location (supports aliases: US, UK, remote)
+jobgo jobs list --location "US,remote"
+
+# New grad roles only
 jobgo jobs list --new-grad
 
-# Combine filters
-jobgo jobs list --visa-friendly --new-grad --remote
+# H1B sponsors only
+jobgo jobs list --h1b
 
-# View full job details (includes H1B and classification info)
+# Combine any filters
+jobgo jobs list --min-score 60 --title "software engineer" --location "remote" --h1b
+
+# JSON output
+jobgo jobs list --output json | jq '.[].title'
+
+# View full job details (description + skill match breakdown)
 jobgo jobs show <job-id>
 
 # Open in browser
 jobgo jobs open <job-id>
+```
 
-# JSON output
-jobgo jobs list -o json
+### Understand your skill gaps
+
+```bash
+# List all 80+ skills in the taxonomy
+jobgo skills list
+
+# See which skills appear most in your top jobs but you're missing
+jobgo skills gap
+jobgo skills gap --min-score 60 --top 15
+```
+
+Example output:
+```
+Top 10 missing skills across 47 scored jobs (score >= 50):
+
+   1. Kafka                    missing in 23 jobs (49%)
+   2. Terraform                missing in 19 jobs (40%)
+   3. AWS                      missing in 17 jobs (36%)
+   ...
 ```
 
 ### Track applications
 
 ```bash
+# Mark as applied
 jobgo apply <job-id> --notes "Applied via website"
-jobgo jobs update <job-id> --status interview --notes "Scheduled Friday"
+
+# Update status
+jobgo jobs update <job-id> --status interview --notes "Phone screen Friday"
+
+# View pipeline summary
 jobgo status
 ```
+
+Valid statuses: `new`, `applied`, `interview`, `offer`, `rejected`, `withdrawn`
 
 ### Watch mode
 
 ```bash
+# Poll every 30 minutes, notify on high-match new jobs
 jobgo watch --interval 30m --min-score 50
 ```
 
-Runs in the foreground, scraping on a loop and notifying you of new high-match jobs.
+Watch mode scrapes, scores new jobs, then applies your profile filters (preferred roles, locations, visa requirement) before sending notifications. Press `Ctrl+C` to stop.
+
+---
 
 ## H1B Workflow
 
@@ -152,45 +191,73 @@ For international students and new grads needing sponsorship:
 # 1. Mark visa required in profile
 jobgo profile set --visa
 
-# 2. Import USCIS data
+# 2. Download USCIS H1B Employer Data Hub CSV from uscis.gov and import
 jobgo h1b import data/h1b_employers.csv
+jobgo h1b status
 
-# 3. Scrape + score + classify + adjust
+# 3. Scrape and score
 jobgo search
 
-# 4. View visa-friendly new grad jobs
-jobgo jobs list --visa-friendly --new-grad
+# 4. Filter to H1B sponsors only
+jobgo jobs list --h1b --min-score 50
 
-# 5. Check H1B status of tracked companies
-jobgo h1b status
+# 5. Combine with new-grad filter
+jobgo jobs list --h1b --new-grad --location "remote,US"
 ```
 
-**Score adjustments applied automatically when `visa_required = true`:**
+---
 
-| Signal | Score Delta |
-|--------|------------|
-| Company H1B sponsor, ≥90% approval | +15 |
-| Company H1B sponsor, ≥70% approval | +10 |
-| Company H1B sponsor, <70% approval | +5 |
-| Job mentions visa sponsorship positively | +10 |
-| Job says no visa sponsorship | −20 |
-| New grad role + ≤2 years experience | +5 |
+## Scoring System
+
+JobGo scores jobs on **skill match only** (0–100). Filters like title, location, new-grad, and H1B are applied separately after scoring — so you always see the true skill fit regardless of where you want to work.
+
+### How scores are calculated
+
+The job description is parsed into three sections:
+
+| Section | Triggered by | Weight |
+|---------|-------------|--------|
+| Required | "Requirements:", "Qualifications:" | 70% |
+| Preferred | "Nice to have:", "Preferred qualifications:" | 20% |
+| Mentioned | Everything else | 10% |
+
+```
+score = (matched_required / total_required) × 70
+      + (matched_preferred / total_preferred) × 20
+      + (matched_mentioned / total_mentioned) × 10
+```
+
+### Matcher modes
+
+Configure in `~/.jobgo/config.yaml`:
+
+```yaml
+matcher:
+  type: hybrid      # keyword (default), llm, or hybrid
+  llm_threshold: 30 # only call LLM if keyword score >= this
+
+anthropic_api_key: sk-ant-...
+```
+
+| Mode | Description |
+|------|-------------|
+| `keyword` | Fast, deterministic, no API key needed |
+| `llm` | Claude scores each job (slow, costs tokens) |
+| `hybrid` | Keyword first; LLM only if score ≥ threshold (best balance) |
+
+---
 
 ## Configuration
 
-Config file at `~/.jobgo/config.yaml`:
+Config file: `~/.jobgo/config.yaml`
 
 ```yaml
-# Matcher: keyword, llm, or hybrid
-matcher: keyword
+matcher:
+  type: hybrid
+  llm_threshold: 30
 
-# Anthropic API key for LLM/hybrid matching
 anthropic_api_key: sk-ant-...
 
-# Keyword score threshold for hybrid mode
-hybrid_threshold: 30.0
-
-# Notification channels
 notify:
   - desktop
   # - webhook
@@ -198,19 +265,21 @@ notify:
 # webhook_url: https://hooks.slack.com/services/...
 ```
 
-Or use environment variables:
+Or set via environment variable:
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
+---
+
 ## API Server
 
 ```bash
-# REST API
+# REST API (for Chrome extension or custom integrations)
 jobgo serve --port 8080
 
-# MCP server (stdio, for Claude Code)
+# MCP server (stdio, for Claude Code / Claude Desktop)
 jobgo serve --mcp
 
 # MCP server (SSE, for remote clients)
@@ -219,57 +288,91 @@ jobgo serve --mcp-sse --port 9090
 
 ### REST Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | /api/jobs | List jobs (query: min_score, company_id, new, remote, visa_friendly, new_grad) |
-| GET | /api/jobs/:id | Job details (includes H1B + classification fields) |
-| GET | /api/companies | List companies |
-| POST | /api/companies | Add a company |
-| DELETE | /api/companies/:id | Remove a company |
-| GET | /api/profile | Current profile |
-| GET | /api/stats | Application pipeline summary |
-| GET | /api/h1b/sponsors | H1B sponsorship status for tracked companies |
-| GET | /api/h1b/status | Total H1B records in database |
+| Method | Path | Query params |
+|--------|------|--------------|
+| GET | `/api/jobs` | `min_score`, `company_id`, `new`, `title`, `location`, `h1b`, `new_grad`, `in_cart` |
+| GET | `/api/jobs/:id` | — |
+| GET | `/api/companies` | — |
+| POST | `/api/companies` | body: `{name, platform, slug}` |
+| DELETE | `/api/companies/:id` | — |
+| GET | `/api/profile` | — |
+| GET | `/api/stats` | — |
+| GET | `/api/h1b/sponsors` | — |
+| GET | `/api/h1b/status` | — |
+| GET | `/api/jobcart` | — |
+| POST | `/api/jobcart/:id` | — |
+| DELETE | `/api/jobcart/:id` | — |
+| POST | `/api/jobcart/scan` | — |
 
-### MCP Tools
+### MCP Tools (for Claude Code / Claude Desktop)
+
+Add to your Claude config:
+
+```json
+{
+  "mcpServers": {
+    "jobgo": {
+      "command": "jobgo",
+      "args": ["serve", "--mcp"]
+    }
+  }
+}
+```
 
 | Tool | Description |
 |------|-------------|
-| search_jobs | Search jobs with filters (visa_friendly, new_grad, remote, min_score) |
-| get_job_details | Full job description + match info + H1B/classification data |
-| list_companies | Tracked companies with H1B sponsorship info |
-| get_profile | User profile including visa requirement |
-| get_stats | Application pipeline stats |
+| `search_jobs` | Search with `min_score`, `title`, `location`, `new_only`, `new_grad`, `h1b_only` |
+| `get_job_details` | Full description + skill match breakdown |
+| `list_companies` | Tracked companies + H1B status |
+| `get_profile` | User profile |
+| `get_stats` | Application pipeline counts |
+| `analyze_skill_gap` | Top missing skills across scored jobs |
+
+---
+
+## Chrome Extension
+
+Load `extension/` as an unpacked extension in Chrome (`chrome://extensions` → Developer mode → Load unpacked).
+
+In the Settings tab, set:
+- **Backend URL**: `http://localhost:8080`
+- **Min Score**: minimum skill score to display
+
+The Jobs tab supports live filtering by title, location, new-grad, and H1B toggle.
+
+---
 
 ## Supported Platforms
 
-| Platform | API | Auth |
-|----------|-----|------|
-| Lever | `api.lever.co/v0/postings/{slug}` | None (public) |
-| Greenhouse | `boards.greenhouse.io/v1/boards/{slug}/jobs` | None (public) |
+| Platform | API |
+|----------|-----|
+| Lever | `api.lever.co/v0/postings/{slug}` |
+| Greenhouse | `boards.greenhouse.io/v1/boards/{slug}/jobs` |
+
+---
 
 ## Development
 
 ```bash
-# Run tests
-make test
-
-# Run tests (skip integration)
-go test ./... -short
-
-# Lint
-make lint
-
 # Build
-make build
+go build -o bin/jobgo ./cmd/jobgo
+
+# Run all tests
+go test ./...
+
+# Test specific packages
+go test ./internal/skills/... ./internal/matcher/... ./internal/filter/...
+
+# On Windows: kill old process before rebuilding
+Stop-Process -Name jobgo -Force   # PowerShell
 ```
 
 ## Tech Stack
 
 - **Go** — CLI, concurrency, HTTP server
-- **SQLite** (modernc.org/sqlite) — Zero-config embedded database
+- **SQLite** (`modernc.org/sqlite`) — Zero-config embedded database
 - **Cobra/Viper** — CLI framework + config management
 - **Chi** — Lightweight HTTP router
 - **mcp-go** — Model Context Protocol server SDK
 - **Claude API** — LLM-powered job matching
-- **USCIS H1B Employer Data Hub** — Visa sponsorship history data
+- **USCIS H1B Employer Data Hub** — Visa sponsorship history

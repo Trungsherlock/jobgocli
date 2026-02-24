@@ -3,7 +3,7 @@ package cli
 import (
     "fmt"
 
-    "github.com/Trungsherlock/jobgocli/internal/h1b"
+    "github.com/Trungsherlock/jobgo/internal/h1b"
     "github.com/spf13/cobra"
 )
 

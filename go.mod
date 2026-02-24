@@ -1,4 +1,4 @@
-module github.com/Trungsherlock/jobgocli
+module github.com/Trungsherlock/jobgo
 
 go 1.25.7
 

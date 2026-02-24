@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Trungsherlock/jobgocli/internal/database"
+	"github.com/Trungsherlock/jobgo/internal/database"
 )
 
 type H1BAdjustment struct {

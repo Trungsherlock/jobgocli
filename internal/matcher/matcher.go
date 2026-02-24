@@ -1,6 +1,6 @@
 package matcher
 
-import "github.com/Trungsherlock/jobgocli/internal/database"
+import "github.com/Trungsherlock/jobgo/internal/database"
 
 type MatchResult struct {
 	Score 	float64

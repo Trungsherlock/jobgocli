@@ -3,7 +3,7 @@ package matcher
 import (
 	"testing"
 
-	"github.com/Trungsherlock/jobgocli/internal/database"
+	"github.com/Trungsherlock/jobgo/internal/database"
 )
 
 func strPtr(s string) *string { return &s }

@@ -4,8 +4,8 @@ import (
     "fmt"
     "strings"
 
-    "github.com/Trungsherlock/jobgocli/internal/database"
-    "github.com/Trungsherlock/jobgocli/internal/skills"
+    "github.com/Trungsherlock/jobgo/internal/database"
+    "github.com/Trungsherlock/jobgo/internal/skills"
 )
 
 type SkillScoreResult struct {

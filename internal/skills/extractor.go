@@ -12,8 +12,8 @@ type JobSkills struct {
 }
 
 var (
-	requiredRe = regexp.MustCompile(`(?i)(requirements?|qualifications?|must.have|what you.?ll need |minimum qualifications?)`)
-	preferredRe = regexp.MustCompile(`(?i)(nice.to.have|bonus|preferred qualifications?|what would be (great|nice)|additional qualifications?)`)
+	requiredRe  = regexp.MustCompile(`(?i)^\s*(requirements?|qualifications?|what you.?ll need|minimum qualifications?)\s*:?\s*$`)
+	preferredRe = regexp.MustCompile(`(?i)^\s*(nice.to.have|preferred qualifications?|what would be (great|nice)|additional qualifications?)\s*:?\s*$`)
 )
 
 func ExtractFromJob(description string) JobSkills {

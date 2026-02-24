@@ -3,7 +3,7 @@ package h1b
 import (
 	"testing"
 
-	"github.com/Trungsherlock/jobgocli/internal/database"
+	"github.com/Trungsherlock/jobgo/internal/database"
 )
 
 func TestClassifyJob(t *testing.T) {

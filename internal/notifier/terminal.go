@@ -3,7 +3,7 @@ package notifier
 import (
 	"fmt"
 
-	"github.com/Trungsherlock/jobgocli/internal/database"
+	"github.com/Trungsherlock/jobgo/internal/database"
 )
 
 type TerminalNotifier struct{}

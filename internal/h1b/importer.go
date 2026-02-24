@@ -12,7 +12,7 @@ import (
 	"golang.org/x/text/encoding/unicode"
 	"golang.org/x/text/transform"
 
-	"github.com/Trungsherlock/jobgocli/internal/database"
+	"github.com/Trungsherlock/jobgo/internal/database"
 	"github.com/google/uuid"
 )
 
