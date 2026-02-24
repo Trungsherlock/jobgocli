@@ -7,12 +7,14 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	"encoding/json"
 
 	"github.com/Trungsherlock/jobgocli/internal/database"
 	"github.com/Trungsherlock/jobgocli/internal/matcher"
 	"github.com/Trungsherlock/jobgocli/internal/scraper"
 	"github.com/Trungsherlock/jobgocli/internal/worker"
 	"github.com/Trungsherlock/jobgocli/internal/notifier"
+	"github.com/Trungsherlock/jobgocli/internal/filter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -122,22 +124,49 @@ func runCycle(ctx context.Context, minScore float64, notifiers []notifier.Notifi
 	// Print new high-match jobs
 	if totalNew > 0 && profile != nil {
         highMatches, _ := db.ListJobs(minScore, "", true, false, false, false, false)
-        for _, j := range highMatches {
+
+		params := filter.Params{}
+		if profile.PreferredRoles != "" {
+			params.Titles = parseJSONArray(profile.PreferredRoles)
+		}
+		if profile.PreferredLocations != "" {
+			params.Locations = parseJSONArray(profile.PreferredLocations)
+		}
+		var sponsorIDs map[string]bool
+		if profile.VisaRequired {
+			companies, _ := db.ListCompanies()
+			sponsorIDs = make(map[string]bool)
+			for _, c := range companies {
+				if c.SponsorsH1b {
+					sponsorIDs[c.ID] = true
+				}
+			}
+			params.H1BOnly = true
+		}
+
+		filtered := filter.Apply(highMatches, filter.Build(params, sponsorIDs))
+
+        for _, j := range filtered {
             score := 0.0
             if j.SkillScore != nil {
                 score = *j.SkillScore
             }
-            companyName := j.CompanyID[:8]
-            c, err := db.GetCompany(j.CompanyID)
-            if err == nil {
-                companyName = c.Name
-            }
             for _, n := range notifiers {
-                _ = n.Notify(j, companyName, score)
+                _ = n.Notify(j, j.CompanyName, score)
             }
         }
     }
 }
+
+func parseJSONArray(s string) []string {
+    if s == "" {
+        return nil
+    }
+    var arr []string
+    _ = json.Unmarshal([]byte(s), &arr)
+    return arr
+}
+
 
 func init() {
 	rootCmd.AddCommand(watchCmd)
